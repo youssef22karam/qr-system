@@ -67,6 +67,15 @@
             margin: 25px 0;
         }
         
+        .warning-section {
+            background: rgba(255, 165, 0, 0.1);
+            border: 2px solid #ffa500;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 25px 0;
+        }
+        
         input[type="text"] {
             width: 100%;
             padding: 15px;
@@ -98,6 +107,12 @@
             box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
         
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         #qrcode {
             background: white;
             padding: 20px;
@@ -111,11 +126,38 @@
             text-align: center;
             margin: 20px 0;
         }
+        
+        .status-indicator {
+            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .status-checking {
+            background: rgba(255, 165, 0, 0.2);
+            color: #ffa500;
+        }
+        
+        .status-valid {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+        }
+        
+        .status-invalid {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff6b6b;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🔄 QR Ownership</h1>
+        
+        <!-- Real-time status indicator -->
+        <div id="statusIndicator" class="status-indicator status-checking" style="text-align: center; display: none;">
+            🔄 Checking QR status...
+        </div>
         
         <!-- User Interface - Ownership Display and Transfer -->
         <div id="ownershipDisplay" style="display: none;">
@@ -129,7 +171,8 @@
             <div class="transfer-form">
                 <h3>🔄 Transfer Ownership</h3>
                 <input type="text" id="newOwnerInput" placeholder="Enter your name to claim ownership">
-                <button onclick="claimOwnership()">Claim Ownership</button>
+                <button id="claimButton" onclick="claimOwnership()">Claim Ownership</button>
+                <div id="claimStatus" style="margin-top: 10px; font-size: 14px;"></div>
             </div>
         </div>
         
@@ -157,7 +200,17 @@
                 <h2>❌ Invalid QR Code</h2>
                 <p>This QR code is no longer valid.</p>
                 <p>The ownership has been transferred to a new owner.</p>
-                <button onclick="location.reload()">🏠 Go Back</button>
+                <button onclick="location.reload()">🔄 Refresh Page</button>
+            </div>
+        </div>
+        
+        <!-- Race condition warning -->
+        <div id="raceConditionWarning" style="display: none;">
+            <div class="warning-section">
+                <h2>⚠️ QR Code Already Claimed</h2>
+                <p>Someone else claimed this QR code while you were viewing it.</p>
+                <p>The page will refresh automatically to show the current status.</p>
+                <button onclick="location.reload()">🔄 Refresh Now</button>
             </div>
         </div>
         
@@ -174,60 +227,173 @@
     <script>
         let qrDatabase = {};
         let currentQRData = null;
+        let currentQRId = null;
+        let statusCheckInterval = null;
+        let isClaimingInProgress = false;
         
         function generateUniqueId() {
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
         }
         
+        function loadDatabase() {
+            const savedDatabase = localStorage.getItem('qrDatabase');
+            if (savedDatabase) {
+                qrDatabase = JSON.parse(savedDatabase);
+            }
+            return qrDatabase;
+        }
+        
+        function saveDatabase() {
+            localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
+        }
+        
+        function checkQRStatus(qrId) {
+            const database = loadDatabase();
+            const statusDiv = document.getElementById('statusIndicator');
+            
+            if (!database[qrId]) {
+                // QR doesn't exist in database, might be new or deleted
+                statusDiv.className = 'status-indicator status-invalid';
+                statusDiv.textContent = '❌ QR not found in database';
+                return false;
+            }
+            
+            if (database[qrId].status !== 'active') {
+                // QR has been invalidated
+                statusDiv.className = 'status-indicator status-invalid';
+                statusDiv.textContent = '❌ QR code is no longer valid';
+                showRaceConditionWarning();
+                return false;
+            }
+            
+            statusDiv.className = 'status-indicator status-valid';
+            statusDiv.textContent = '✅ QR code is valid';
+            return true;
+        }
+        
+        function startStatusMonitoring(qrId) {
+            const statusDiv = document.getElementById('statusIndicator');
+            statusDiv.style.display = 'block';
+            
+            // Check immediately
+            if (!checkQRStatus(qrId)) {
+                return;
+            }
+            
+            // Check every 2 seconds for real-time updates
+            statusCheckInterval = setInterval(() => {
+                if (!checkQRStatus(qrId)) {
+                    clearInterval(statusCheckInterval);
+                }
+            }, 2000);
+        }
+        
+        function stopStatusMonitoring() {
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
+            }
+            const statusDiv = document.getElementById('statusIndicator');
+            statusDiv.style.display = 'none';
+        }
+        
         function claimOwnership() {
+            if (isClaimingInProgress) {
+                return; // Prevent multiple simultaneous claims
+            }
+            
             const newOwner = document.getElementById('newOwnerInput').value.trim();
             if (!newOwner) {
                 alert('Please enter your name to claim ownership');
                 return;
             }
             
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentId = urlParams.get('id');
+            isClaimingInProgress = true;
+            const claimButton = document.getElementById('claimButton');
+            const claimStatus = document.getElementById('claimStatus');
             
-            // Load database
-            const savedDatabase = localStorage.getItem('qrDatabase');
-            if (savedDatabase) {
-                qrDatabase = JSON.parse(savedDatabase);
+            // Disable the button and show processing status
+            claimButton.disabled = true;
+            claimButton.textContent = 'Processing...';
+            claimStatus.innerHTML = '<span style="color: #ffa500;">🔄 Validating ownership claim...</span>';
+            
+            // Re-check QR status before claiming (race condition protection)
+            const database = loadDatabase();
+            
+            if (!database[currentQRId] || database[currentQRId].status !== 'active') {
+                // QR has been claimed by someone else
+                isClaimingInProgress = false;
+                claimButton.disabled = false;
+                claimButton.textContent = 'Claim Ownership';
+                claimStatus.innerHTML = '<span style="color: #ff6b6b;">❌ This QR code has been claimed by someone else!</span>';
+                
+                setTimeout(() => {
+                    showRaceConditionWarning();
+                }, 2000);
+                return;
             }
             
-            if (currentId && qrDatabase[currentId]) {
-                // Invalidate the current QR
-                qrDatabase[currentId].status = 'invalid';
-                localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
-            }
-            
-            // Generate new QR for the new owner
-            generateNewOwnerQR(newOwner);
+            // Add a small delay to simulate network latency and make race conditions more visible
+            setTimeout(() => {
+                try {
+                    // Final check before actual claim
+                    const finalDatabase = loadDatabase();
+                    if (!finalDatabase[currentQRId] || finalDatabase[currentQRId].status !== 'active') {
+                        throw new Error('QR code claimed during processing');
+                    }
+                    
+                    // Invalidate the current QR (atomic operation)
+                    finalDatabase[currentQRId].status = 'invalid';
+                    finalDatabase[currentQRId].invalidatedBy = newOwner;
+                    finalDatabase[currentQRId].invalidatedAt = new Date().toISOString();
+                    
+                    // Generate new QR for the new owner
+                    const newQRId = generateUniqueId();
+                    const createdDate = new Date().toISOString();
+                    
+                    const baseUrl = 'https://youssef22karam.github.io/qr-system/index.html';
+                    const qrUrl = `${baseUrl}?owner=${encodeURIComponent(newOwner)}&id=${newQRId}&created=${encodeURIComponent(createdDate)}&status=active`;
+                    
+                    finalDatabase[newQRId] = {
+                        owner: newOwner,
+                        created: createdDate,
+                        status: 'active',
+                        url: qrUrl,
+                        previousOwner: finalDatabase[currentQRId].owner,
+                        transferredFrom: currentQRId
+                    };
+                    
+                    // Save database (atomic operation)
+                    qrDatabase = finalDatabase;
+                    saveDatabase();
+                    
+                    // Store current QR data for download
+                    currentQRData = {
+                        id: newQRId,
+                        owner: newOwner,
+                        url: qrUrl
+                    };
+                    
+                    // Stop monitoring since we're transferring
+                    stopStatusMonitoring();
+                    
+                    // Show success with new QR
+                    generateNewOwnerQR(newOwner, qrUrl);
+                    
+                } catch (error) {
+                    isClaimingInProgress = false;
+                    claimButton.disabled = false;
+                    claimButton.textContent = 'Claim Ownership';
+                    claimStatus.innerHTML = '<span style="color: #ff6b6b;">❌ Claim failed: Someone else claimed this QR first!</span>';
+                    
+                    setTimeout(() => {
+                        showRaceConditionWarning();
+                    }, 2000);
+                }
+            }, 1000); // 1 second delay to simulate processing time
         }
         
-        function generateNewOwnerQR(ownerName) {
-            const newQRId = generateUniqueId();
-            const createdDate = new Date().toISOString();
-            
-            const baseUrl = 'https://youssef22karam.github.io/qr-system/index.html';
-            const qrUrl = `${baseUrl}?owner=${encodeURIComponent(ownerName)}&id=${newQRId}&created=${encodeURIComponent(createdDate)}&status=active`;
-            
-            // Store the new QR in database
-            qrDatabase[newQRId] = {
-                owner: ownerName,
-                created: createdDate,
-                status: 'active',
-                url: qrUrl
-            };
-            localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
-            
-            // Store current QR data for download
-            currentQRData = {
-                id: newQRId,
-                owner: ownerName,
-                url: qrUrl
-            };
-            
+        function generateNewOwnerQR(ownerName, qrUrl) {
             // Show success message with new QR
             hideAllSections();
             document.getElementById('newOwnerName').textContent = ownerName;
@@ -243,6 +409,7 @@
             document.getElementById('qrcode').innerHTML = qr.createImgTag(8, 0);
             
             document.getElementById('successMessage').style.display = 'block';
+            isClaimingInProgress = false;
         }
         
         function downloadQR() {
@@ -253,22 +420,16 @@
             
             const qrImg = document.querySelector('#qrcode img');
             if (qrImg) {
-                // Create a canvas to convert the QR image to PNG
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
-                // Set canvas size
                 canvas.width = qrImg.width;
                 canvas.height = qrImg.height;
                 
-                // Draw white background
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // Draw the QR image
                 ctx.drawImage(qrImg, 0, 0);
                 
-                // Convert to PNG and download
                 canvas.toBlob(function(blob) {
                     const link = document.createElement('a');
                     link.download = `QR-${currentQRData.owner}-${currentQRData.id}.png`;
@@ -284,6 +445,8 @@
             document.getElementById('successMessage').style.display = 'none';
             document.getElementById('invalidMessage').style.display = 'none';
             document.getElementById('welcomePage').style.display = 'none';
+            document.getElementById('raceConditionWarning').style.display = 'none';
+            stopStatusMonitoring();
         }
         
         function showOwnershipInfo(owner, id, created) {
@@ -291,8 +454,12 @@
             document.getElementById('displayQRId').textContent = id;
             document.getElementById('displayCreated').textContent = new Date(created).toLocaleString();
             
+            currentQRId = id;
             hideAllSections();
             document.getElementById('ownershipDisplay').style.display = 'block';
+            
+            // Start real-time status monitoring
+            startStatusMonitoring(id);
         }
         
         function showInvalidMessage() {
@@ -300,20 +467,30 @@
             document.getElementById('invalidMessage').style.display = 'block';
         }
         
+        function showRaceConditionWarning() {
+            hideAllSections();
+            document.getElementById('raceConditionWarning').style.display = 'block';
+        }
+        
         function showWelcomePage() {
             hideAllSections();
             document.getElementById('welcomePage').style.display = 'block';
         }
         
+        // Handle page visibility changes to check status when user returns
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden && currentQRId) {
+                // Page became visible, check if QR is still valid
+                if (!checkQRStatus(currentQRId)) {
+                    clearInterval(statusCheckInterval);
+                }
+            }
+        });
+        
         // Initialize the page
         window.onload = function() {
-            // Load existing database from localStorage
-            const savedDatabase = localStorage.getItem('qrDatabase');
-            if (savedDatabase) {
-                qrDatabase = JSON.parse(savedDatabase);
-            }
+            qrDatabase = loadDatabase();
             
-            // Check if we're loading from a QR code (URL parameters)
             const urlParams = new URLSearchParams(window.location.search);
             const owner = urlParams.get('owner');
             const id = urlParams.get('id');
@@ -324,14 +501,17 @@
                 if (qrDatabase[id] && qrDatabase[id].status === 'active') {
                     showOwnershipInfo(owner, id, created);
                 } else {
-                    // QR is invalid
                     showInvalidMessage();
                 }
             } else {
-                // Show welcome page for direct access
                 showWelcomePage();
             }
         };
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            stopStatusMonitoring();
+        });
     </script>
 </body>
 </html>
