@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Admin Panel</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #2d5016 0%, #1a4c96 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 2px solid #00ff00;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            color: #00ff00;
+        }
+        
+        .admin-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: rgba(0, 255, 0, 0.05);
+            border-radius: 15px;
+            border: 2px solid rgba(0, 255, 0, 0.3);
+        }
+        
+        .generate-section {
+            background: rgba(255, 215, 0, 0.1);
+            border: 2px solid #ffd700;
+        }
+        
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 16px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #00ff00, #32cd32);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            margin: 5px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .danger-btn {
+            background: linear-gradient(45deg, #ff4757, #ff6b7a) !important;
+        }
+        
+        .download-btn {
+            background: linear-gradient(45deg, #3742fa, #5352ed) !important;
+        }
+        
+        .info-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #ffd700;
+        }
+        
+        .invalid-qr {
+            border-left-color: #ff4757 !important;
+            background: rgba(255, 71, 87, 0.1) !important;
+        }
+        
+        .url-display {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: monospace;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        
+        #qrcode {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            margin: 20px 0;
+        }
+        
+        .login-form {
+            text-align: center;
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        
+        .stat-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 120px;
+        }
+        
+        .active-stat {
+            border: 2px solid #00ff00;
+        }
+        
+        .invalid-stat {
+            border: 2px solid #ff4757;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 QR Admin Panel</h1>
+        
+        <!-- Admin Login Form -->
+        <div id="adminLogin" class="login-form">
+            <div class="admin-section">
+                <h2>🔐 Admin Access Required</h2>
+                <input type="password" id="adminPassword" placeholder="Enter admin password" value="admin123">
+                <button onclick="checkAdminPassword()">Access Admin Panel</button>
+                <p style="font-size: 12px; opacity: 0.7;">Default password: admin123</p>
+            </div>
+        </div>
+        
+        <!-- Admin Panel -->
+        <div id="adminPanel" style="display: none;">
+            <!-- Statistics -->
+            <div class="admin-section">
+                <h2>📊 QR Statistics</h2>
+                <div class="stats">
+                    <div class="stat-box active-stat">
+                        <h3 id="activeCount">0</h3>
+                        <p>Active QRs</p>
+                    </div>
+                    <div class="stat-box invalid-stat">
+                        <h3 id="invalidCount">0</h3>
+                        <p>Invalid QRs</p>
+                    </div>
+                    <div class="stat-box">
+                        <h3 id="totalCount">0</h3>
+                        <p>Total Generated</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Generate New QR -->
+            <div class="admin-section generate-section">
+                <h2>🎯 Generate New QR Token</h2>
+                <input type="text" id="ownerName" placeholder="Enter initial owner name" value="New Owner">
+                <button onclick="generateQR()">🔄 Generate QR Token</button>
+                
+                <div id="qrDisplay" style="text-align: center;"></div>
+                <div id="currentUrl"></div>
+            </div>
+            
+            <!-- QR Management -->
+            <div class="admin-section">
+                <h2>📋 QR Management</h2>
+                <button onclick="refreshHistory()">🔄 Refresh</button>
+                <button onclick="clearAllQRs()" class="danger-btn">🗑️ Clear All QRs</button>
+                <button onclick="exportDatabase()" class="download-btn">📥 Export Database</button>
+                <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importDatabase()">
+                <button onclick="document.getElementById('importFile').click()" class="download-btn">📤 Import Database</button>
+                
+                <div id="qrHistory"></div>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <button onclick="logout()" class="danger-btn">🚪 Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let qrDatabase = {};
+        let currentQRId = null;
+        const ADMIN_PASSWORD = "admin123"; // Change this to your desired password
+        
+        function generateUniqueId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+        
+        function checkAdminPassword() {
+            const password = document.getElementById('adminPassword').value;
+            if (password === ADMIN_PASSWORD) {
+                showAdminPanel();
+            } else {
+                alert('❌ Incorrect password!');
+            }
+        }
+        
+        function showAdminPanel() {
+            loadDatabase();
+            document.getElementById('adminLogin').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+            updateQRHistory();
+            updateStats();
+        }
+        
+        function logout() {
+            document.getElementById('adminPanel').style.display = 'none';
+            document.getElementById('adminLogin').style.display = 'block';
+            document.getElementById('adminPassword').value = '';
+        }
+        
+        function loadDatabase() {
+            const savedDatabase = localStorage.getItem('qrDatabase');
+            if (savedDatabase) {
+                qrDatabase = JSON.parse(savedDatabase);
+            }
+        }
+        
+        function saveDatabase() {
+            localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
+        }
+        
+        function generateQR() {
+            const ownerName = document.getElementById('ownerName').value.trim();
+            if (!ownerName) {
+                alert('Please enter an owner name');
+                return;
+            }
+            
+            currentQRId = generateUniqueId();
+            const createdDate = new Date().toISOString();
+            
+            const baseUrl = 'https://youssef22karam.github.io/qr-system/index.html';
+            const qrUrl = `${baseUrl}?owner=${encodeURIComponent(ownerName)}&id=${currentQRId}&created=${encodeURIComponent(createdDate)}&status=active`;
+            
+            qrDatabase[currentQRId] = {
+                owner: ownerName,
+                created: createdDate,
+                status: 'active',
+                url: qrUrl
+            };
+            
+            // Generate QR Code
+            const qrDisplay = document.getElementById('qrDisplay');
+            qrDisplay.innerHTML = '<div id="qrcode"></div>';
+            
+            const qr = qrcode(0, 'M');
+            qr.addData(qrUrl);
+            qr.make();
+            
+            document.getElementById('qrcode').innerHTML = qr.createImgTag(6, 10);
+            
+            document.getElementById('currentUrl').innerHTML = `
+                <div class="info-box">
+                    <strong>✅ QR Token Generated Successfully!</strong>
+                    <div class="url-display">${qrUrl}</div>
+                    <p><strong>Owner:</strong> ${ownerName}</p>
+                    <p><strong>ID:</strong> ${currentQRId}</p>
+                    <p><strong>Status:</strong> Active</p>
+                    <button onclick="downloadGeneratedQR()" class="download-btn">📥 Download QR (PNG)</button>
+                </div>
+            `;
+            
+            saveDatabase();
+            updateQRHistory();
+            updateStats();
+        }
+        
+        function downloadGeneratedQR() {
+            const qrImg = document.querySelector('#qrcode img');
+            if (qrImg) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = qrImg.width;
+                canvas.height = qrImg.height;
+                
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(qrImg, 0, 0);
+                
+                canvas.toBlob(function(blob) {
+                    const link = document.createElement('a');
+                    link.download = `QR-Token-${currentQRId}.png`;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                }, 'image/png');
+            }
+        }
+        
+        function updateStats() {
+            const qrList = Object.values(qrDatabase);
+            const activeCount = qrList.filter(qr => qr.status === 'active').length;
+            const invalidCount = qrList.filter(qr => qr.status === 'invalid').length;
+            const totalCount = qrList.length;
+            
+            document.getElementById('activeCount').textContent = activeCount;
+            document.getElementById('invalidCount').textContent = invalidCount;
+            document.getElementById('totalCount').textContent = totalCount;
+        }
+        
+        function updateQRHistory() {
+            const historyDiv = document.getElementById('qrHistory');
+            const qrList = Object.entries(qrDatabase).reverse();
+            
+            if (qrList.length === 0) {
+                historyDiv.innerHTML = '<div class="info-box">No QR tokens generated yet.</div>';
+                return;
+            }
+            
+            historyDiv.innerHTML = qrList.map(([id, data]) => `
+                <div class="info-box ${data.status !== 'active' ? 'invalid-qr' : ''}" style="margin: 15px 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong style="color: ${data.status === 'active' ? '#00ff00' : '#ff4757'};">${data.status.toUpperCase()}</strong>
+                        <span style="font-size: 12px; opacity: 0.7;">${new Date(data.created).toLocaleString()}</span>
+                    </div>
+                    <strong>ID:</strong> ${id}<br>
+                    <strong>Owner:</strong> ${data.owner}<br>
+                    <div class="url-display">${data.url}</div>
+                    <div style="margin-top: 10px;">
+                        ${data.status === 'active' ? 
+                            `<button onclick="invalidateQR('${id}')" class="danger-btn">❌ Invalidate</button>` : 
+                            '<span style="color: #ff4757;">● Invalid</span>'
+                        }
+                        <button onclick="deleteQR('${id}')" class="danger-btn">🗑️ Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function invalidateQR(qrId) {
+            if (confirm('Are you sure you want to invalidate this QR token?')) {
+                if (qrDatabase[qrId]) {
+                    qrDatabase[qrId].status = 'invalid';
+                    saveDatabase();
+                    updateQRHistory();
+                    updateStats();
+                    alert('✅ QR Token invalidated successfully!');
+                }
+            }
+        }
+        
+        function deleteQR(qrId) {
+            if (confirm('Are you sure you want to permanently delete this QR token?')) {
+                delete qrDatabase[qrId];
+                saveDatabase();
+                updateQRHistory();
+                updateStats();
+                alert('✅ QR Token deleted successfully!');
+            }
+        }
+        
+        function refreshHistory() {
+            loadDatabase();
+            updateQRHistory();
+            updateStats();
+            alert('✅ Data refreshed!');
+        }
+        
+        function clearAllQRs() {
+            if (confirm('⚠️ WARNING: This will permanently delete ALL QR tokens. This cannot be undone!')) {
+                if (confirm('Are you ABSOLUTELY sure? This will clear the entire database!')) {
+                    qrDatabase = {};
+                    saveDatabase();
+                    updateQRHistory();
+                    updateStats();
+                    document.getElementById('qrDisplay').innerHTML = '';
+                    document.getElementById('currentUrl').innerHTML = '';
+                    alert('✅ All QR tokens have been cleared!');
+                }
+            }
+        }
+        
+        function exportDatabase() {
+            const dataStr = JSON.stringify(qrDatabase, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `qr-database-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+        
+        function importDatabase() {
+            const file = document.getElementById('importFile').files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (confirm('This will replace your current database. Continue?')) {
+                        qrDatabase = importedData;
+                        saveDatabase();
+                        updateQRHistory();
+                        updateStats();
+                        alert('✅ Database imported successfully!');
+                    }
+                } catch (error) {
+                    alert('❌ Error importing database: Invalid JSON file');
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // Initialize
+        window.onload = function() {
+            loadDatabase();
+        };
+    </script>
+</body>
+</html>
