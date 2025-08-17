@@ -283,12 +283,86 @@
                 localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
             }
             
-            // Generate new QR with new owner
-            document.getElementById('ownerName').value = newOwner;
-            showGenerationForm();
-            generateQR();
+            // Generate new QR immediately and show it
+            generateNewQRForClaim(newOwner);
+        }
+        
+        function generateNewQRForClaim(ownerName) {
+            // Generate new QR ID
+            currentQRId = generateUniqueId();
+            const createdDate = new Date().toISOString();
             
-            alert(`Ownership transferred to ${newOwner}! The old QR code is now invalid.`);
+            // Create the URL that will be encoded in the QR
+            const baseUrl = 'https://youssef22karam.github.io/qr-system/index.html';
+            const qrUrl = `${baseUrl}?owner=${encodeURIComponent(ownerName)}&id=${currentQRId}&created=${encodeURIComponent(createdDate)}&status=active`;
+            
+            // Store in our "database"
+            qrDatabase[currentQRId] = {
+                owner: ownerName,
+                created: createdDate,
+                status: 'active',
+                url: qrUrl
+            };
+            
+            // Auto-save to localStorage
+            localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
+            
+            // Show the new owner info immediately
+            showNewOwnershipInfo(ownerName, currentQRId, createdDate, qrUrl);
+        }
+        
+        function showNewOwnershipInfo(owner, id, created, qrUrl) {
+            // Update the page to show new owner info with QR
+            document.getElementById('generationForm').style.display = 'none';
+            document.getElementById('ownershipDisplay').style.display = 'none';
+            document.getElementById('invalidMessage').style.display = 'none';
+            
+            // Create new owner display section
+            const container = document.querySelector('.container');
+            const newOwnerSection = document.createElement('div');
+            newOwnerSection.id = 'newOwnerSection';
+            newOwnerSection.innerHTML = `
+                <div class="current-owner">
+                    <h2>✅ Ownership Successfully Transferred!</h2>
+                    <h3>New Owner: ${owner}</h3>
+                    <p>QR ID: ${id}</p>
+                    <p>Created: ${new Date(created).toLocaleString()}</p>
+                </div>
+                
+                <div class="section" style="text-align: center;">
+                    <h3>🆕 Your New QR Code</h3>
+                    <div id="newQrDisplay"></div>
+                    <div class="info-box">
+                        <strong>New QR URL:</strong>
+                        <div class="url-display">${qrUrl}</div>
+                    </div>
+                    <button onclick="downloadQR()" style="margin: 10px;">Download QR Code</button>
+                    <button onclick="location.reload()" style="margin: 10px;">Generate Another QR</button>
+                </div>
+            `;
+            
+            container.innerHTML = '';
+            container.appendChild(newOwnerSection);
+            
+            // Generate the QR code
+            const qrDisplay = document.getElementById('newQrDisplay');
+            qrDisplay.innerHTML = '<div style="background:white;padding:20px;border-radius:15px;display:inline-block;box-shadow:0 4px 15px rgba(0,0,0,0.2);"><div id="finalQrCode"></div></div>';
+            
+            const qr = qrcode(0, 'M');
+            qr.addData(qrUrl);
+            qr.make();
+            
+            document.getElementById('finalQrCode').innerHTML = qr.createImgTag(5, 10);
+        }
+        
+        function downloadQR() {
+            const qrImg = document.querySelector('#finalQrCode img');
+            if (qrImg) {
+                const link = document.createElement('a');
+                link.download = `qr-code-${currentQRId}.png`;
+                link.href = qrImg.src;
+                link.click();
+            }
         }
         
         function showGenerationForm() {
