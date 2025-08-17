@@ -307,37 +307,12 @@
         
         // Initialize the page
         window.onload = function() {
-            // Try to load database from GitHub (you'll need to upload the JSON file)
-            loadDatabaseFromGitHub().then(() => {
-                // After loading database, check QR validity
-                checkQRValidity();
-            }).catch(() => {
-                // Fallback to localStorage if GitHub loading fails
-                const savedDatabase = localStorage.getItem('qrDatabase');
-                if (savedDatabase) {
-                    qrDatabase = JSON.parse(savedDatabase);
-                }
-                checkQRValidity();
-            });
-        };
-        
-        async function loadDatabaseFromGitHub() {
-            try {
-                // Replace with your actual GitHub raw file URL
-                const response = await fetch('https://raw.githubusercontent.com/youssef22karam/qr-system/main/qr-database.json');
-                if (response.ok) {
-                    qrDatabase = await response.json();
-                    return true;
-                }
-                throw new Error('Database not found');
-            } catch (error) {
-                console.log('Could not load database from GitHub:', error);
-                throw error;
+            // Load existing database from localStorage
+            const savedDatabase = localStorage.getItem('qrDatabase');
+            if (savedDatabase) {
+                qrDatabase = JSON.parse(savedDatabase);
             }
-        }
-        
-        function checkQRValidity() {
-        function checkQRValidity() {
+            
             // Check if we're loading from a QR code (URL parameters)
             const urlParams = new URLSearchParams(window.location.search);
             const owner = urlParams.get('owner');
@@ -349,14 +324,14 @@
                 if (qrDatabase[id] && qrDatabase[id].status === 'active') {
                     showOwnershipInfo(owner, id, created);
                 } else {
-                    // QR is invalid or not found in database
+                    // QR is invalid
                     showInvalidMessage();
                 }
             } else {
                 // Show welcome page for direct access
                 showWelcomePage();
             }
-        }
+        };
     </script>
 </body>
 </html>
