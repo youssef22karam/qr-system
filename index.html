@@ -128,14 +128,8 @@
             
             <div class="transfer-form">
                 <h3>🔄 Transfer Ownership</h3>
-                <div id="claimStatus" style="display: none; padding: 10px; background: rgba(255,193,7,0.2); border-radius: 5px; margin: 10px 0;">
-                    <p>⏳ Processing claim... Please wait.</p>
-                </div>
                 <input type="text" id="newOwnerInput" placeholder="Enter your name to claim ownership">
-                <button id="claimButton" onclick="claimOwnership()">Claim Ownership</button>
-                <p style="font-size: 12px; opacity: 0.8; margin-top: 10px;">
-                    ⚠️ Note: Only one person can claim this QR code. Claims are processed securely to prevent duplicates.
-                </p>
+                <button onclick="claimOwnership()">Claim Ownership</button>
             </div>
         </div>
         
@@ -192,84 +186,20 @@
                 return;
             }
             
-            // Show processing status
-            document.getElementById('claimStatus').style.display = 'block';
-            document.getElementById('claimButton').disabled = true;
-            document.getElementById('claimButton').textContent = 'Processing...';
-            
             const urlParams = new URLSearchParams(window.location.search);
             const currentId = urlParams.get('id');
             
-            // Reload fresh database to check current status
-            loadDatabaseFromGitHub().then(() => {
-                // Double-check if QR is still valid before claiming
-                if (!currentId || !qrDatabase[currentId] || qrDatabase[currentId].status !== 'active') {
-                    alert('❌ This QR code is no longer valid. Someone else may have already claimed it.');
-                    location.reload();
-                    return;
-                }
-                
-                // Add timestamp to prevent race conditions
-                const claimTimestamp = Date.now();
-                
-                // Mark as "claiming" first to prevent double claims
-                qrDatabase[currentId].status = 'claiming';
-                qrDatabase[currentId].claimTimestamp = claimTimestamp;
-                qrDatabase[currentId].claimingBy = newOwner;
-                
-                // Save the "claiming" status
-                localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
-                
-                // Wait a moment then check if our claim is still valid
-                setTimeout(() => {
-                    loadDatabaseFromGitHub().then(() => {
-                        const qrData = qrDatabase[currentId];
-                        
-                        // Check if someone else claimed it faster
-                        if (!qrData || 
-                            qrData.status === 'invalid' || 
-                            (qrData.status === 'claiming' && qrData.claimTimestamp !== claimTimestamp)) {
-                            alert('❌ Someone else claimed this QR code first. Please try again.');
-                            location.reload();
-                            return;
-                        }
-                        
-                        // Our claim is valid, proceed with transfer
-                        proceedWithTransfer(currentId, newOwner);
-                        
-                    }).catch(() => {
-                        // Fallback to localStorage check
-                        const savedDatabase = localStorage.getItem('qrDatabase');
-                        if (savedDatabase) {
-                            qrDatabase = JSON.parse(savedDatabase);
-                            const qrData = qrDatabase[currentId];
-                            
-                            if (qrData && qrData.status === 'claiming' && qrData.claimTimestamp === claimTimestamp) {
-                                proceedWithTransfer(currentId, newOwner);
-                            } else {
-                                alert('❌ Claim validation failed. Please try again.');
-                                location.reload();
-                            }
-                        }
-                    });
-                }, 1000); // 1 second delay to check for race conditions
-                
-            }).catch(() => {
-                alert('❌ Unable to verify QR status. Please check your internet connection and try again.');
-                // Re-enable button
-                document.getElementById('claimStatus').style.display = 'none';
-                document.getElementById('claimButton').disabled = false;
-                document.getElementById('claimButton').textContent = 'Claim Ownership';
-            });
-        }
-        
-        function proceedWithTransfer(currentId, newOwner) {
-            // Finally invalidate the current QR
-            qrDatabase[currentId].status = 'invalid';
-            qrDatabase[currentId].transferredTo = newOwner;
-            qrDatabase[currentId].transferDate = new Date().toISOString();
+            // Load database
+            const savedDatabase = localStorage.getItem('qrDatabase');
+            if (savedDatabase) {
+                qrDatabase = JSON.parse(savedDatabase);
+            }
             
-            localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
+            if (currentId && qrDatabase[currentId]) {
+                // Invalidate the current QR
+                qrDatabase[currentId].status = 'invalid';
+                localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
+            }
             
             // Generate new QR for the new owner
             generateNewOwnerQR(newOwner);
@@ -357,39 +287,12 @@
         }
         
         function showOwnershipInfo(owner, id, created) {
-            // Before showing ownership info, verify it's still active
-            loadDatabaseFromGitHub().then(() => {
-                if (!qrDatabase[id] || qrDatabase[id].status !== 'active') {
-                    showInvalidMessage();
-                    return;
-                }
-                
-                document.getElementById('displayOwnerName').textContent = owner;
-                document.getElementById('displayQRId').textContent = id;
-                document.getElementById('displayCreated').textContent = new Date(created).toLocaleString();
-                
-                hideAllSections();
-                document.getElementById('ownershipDisplay').style.display = 'block';
-                
-            }).catch(() => {
-                // Fallback to localStorage
-                const savedDatabase = localStorage.getItem('qrDatabase');
-                if (savedDatabase) {
-                    qrDatabase = JSON.parse(savedDatabase);
-                }
-                
-                if (!qrDatabase[id] || qrDatabase[id].status !== 'active') {
-                    showInvalidMessage();
-                    return;
-                }
-                
-                document.getElementById('displayOwnerName').textContent = owner;
-                document.getElementById('displayQRId').textContent = id;
-                document.getElementById('displayCreated').textContent = new Date(created).toLocaleString();
-                
-                hideAllSections();
-                document.getElementById('ownershipDisplay').style.display = 'block';
-            });
+            document.getElementById('displayOwnerName').textContent = owner;
+            document.getElementById('displayQRId').textContent = id;
+            document.getElementById('displayCreated').textContent = new Date(created).toLocaleString();
+            
+            hideAllSections();
+            document.getElementById('ownershipDisplay').style.display = 'block';
         }
         
         function showInvalidMessage() {
@@ -404,37 +307,12 @@
         
         // Initialize the page
         window.onload = function() {
-            // Try to load database from GitHub (you'll need to upload the JSON file)
-            loadDatabaseFromGitHub().then(() => {
-                // After loading database, check QR validity
-                checkQRValidity();
-            }).catch(() => {
-                // Fallback to localStorage if GitHub loading fails
-                const savedDatabase = localStorage.getItem('qrDatabase');
-                if (savedDatabase) {
-                    qrDatabase = JSON.parse(savedDatabase);
-                }
-                checkQRValidity();
-            });
-        };
-        
-        async function loadDatabaseFromGitHub() {
-            try {
-                // Replace with your actual GitHub raw file URL
-                const response = await fetch('https://raw.githubusercontent.com/youssef22karam/qr-system/main/qr-database.json');
-                if (response.ok) {
-                    qrDatabase = await response.json();
-                    return true;
-                }
-                throw new Error('Database not found');
-            } catch (error) {
-                console.log('Could not load database from GitHub:', error);
-                throw error;
+            // Load existing database from localStorage
+            const savedDatabase = localStorage.getItem('qrDatabase');
+            if (savedDatabase) {
+                qrDatabase = JSON.parse(savedDatabase);
             }
-        }
-        
-        function checkQRValidity() {
-        function checkQRValidity() {
+            
             // Check if we're loading from a QR code (URL parameters)
             const urlParams = new URLSearchParams(window.location.search);
             const owner = urlParams.get('owner');
@@ -446,14 +324,14 @@
                 if (qrDatabase[id] && qrDatabase[id].status === 'active') {
                     showOwnershipInfo(owner, id, created);
                 } else {
-                    // QR is invalid or not found in database
+                    // QR is invalid
                     showInvalidMessage();
                 }
             } else {
                 // Show welcome page for direct access
                 showWelcomePage();
             }
-        }
+        };
     </script>
 </body>
 </html>
