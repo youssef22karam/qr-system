@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Ownership System</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
+    <title>QR Ownership Transfer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -15,14 +15,23 @@
             min-height: 100vh;
             color: white;
         }
+        
         .container {
             background: rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 20px;
             backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
             box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
             border: 1px solid rgba(255, 255, 255, 0.18);
         }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
         .section {
             margin: 30px 0;
             padding: 20px;
@@ -30,248 +39,309 @@
             border-radius: 15px;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        input, button {
-            padding: 12px;
-            margin: 10px 5px;
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        input {
+            border-radius: 10px;
             background: rgba(255, 255, 255, 0.9);
             color: #333;
-            width: 200px;
+            font-size: 16px;
+            margin: 10px 0;
+            box-sizing: border-box;
         }
+        
         button {
-            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
             color: white;
+            font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
+        
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
-        button:disabled {
-            background: #666;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .qr-display {
+        
+        #qrcode {
             text-align: center;
             margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        .status {
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-            font-weight: bold;
-        }
-        .error { background: rgba(255, 0, 0, 0.2); border: 1px solid #ff6b6b; }
-        .success { background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; }
-        .warning { background: rgba(255, 255, 0, 0.2); border: 1px solid #ffeb3b; color: #333; }
-        .info { background: rgba(0, 150, 255, 0.2); border: 1px solid #0096ff; }
-        #qrcode canvas { border-radius: 10px; }
-        .ownership-info {
+        
+        .info-box {
             background: rgba(255, 255, 255, 0.1);
             padding: 15px;
             border-radius: 10px;
             margin: 15px 0;
+            border-left: 4px solid #ffd93d;
         }
-        .chain-display {
-            font-family: 'Courier New', monospace;
-            background: rgba(0, 0, 0, 0.3);
+        
+        .method-explanation {
+            background: rgba(0, 255, 0, 0.1);
+            border-left: 4px solid #00ff00;
+        }
+        
+        .url-display {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
             padding: 10px;
             border-radius: 5px;
             word-break: break-all;
-            font-size: 14px;
+            font-family: monospace;
+            margin: 10px 0;
         }
-        h1, h2 { text-align: center; margin-bottom: 30px; }
-        .hidden { display: none; }
+        
+        .invalid-qr {
+            border-left-color: #ff6b6b !important;
+            background: rgba(255, 107, 107, 0.1) !important;
+        }
+        
+        .current-owner {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 20px 0;
+            border: 2px solid #ffd93d;
+        }
+        
+        .transfer-form {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔗 QR Ownership Transfer System</h1>
+        <h1>🔄 QR Ownership System</h1>
         
-        <!-- Create New QR Section -->
-        <div class="section" id="createSection">
-            <h2>Create New QR Code</h2>
-            <input type="text" id="ownerName" placeholder="Enter your unique name" maxlength="30">
-            <button onclick="createNewQR()">Generate QR Code</button>
-            <div id="newQrDisplay" class="qr-display"></div>
+        <!-- Check if we're loading from URL parameters -->
+        <div id="ownershipDisplay" style="display: none;">
+            <div class="current-owner">
+                <h2>Current Owner</h2>
+                <h3 id="displayOwnerName"></h3>
+                <p>QR ID: <span id="displayQRId"></span></p>
+                <p>Created: <span id="displayCreated"></span></p>
+            </div>
+            
+            <div class="transfer-form">
+                <h3>Transfer Ownership</h3>
+                <input type="text" id="newOwnerInput" placeholder="Enter new owner name">
+                <button onclick="claimOwnership()">Claim Ownership</button>
+            </div>
         </div>
-
-        <!-- Claim Existing QR Section -->
-        <div class="section" id="claimSection">
-            <h2>Claim/Transfer QR Code</h2>
-            <div id="ownershipInfo" class="ownership-info hidden"></div>
-            <input type="text" id="newOwnerName" placeholder="Enter your name to claim" maxlength="30">
-            <button onclick="claimOwnership()" id="claimBtn">Claim Ownership</button>
-            <div id="claimedQrDisplay" class="qr-display"></div>
+        
+        <!-- QR Generation Form -->
+        <div id="generationForm">
+            <div class="section method-explanation">
+                <h2>💡 How It Works</h2>
+                <p><strong>Method: URL Parameters + GitHub Pages</strong></p>
+                <ul>
+                    <li>Each QR contains a URL to your GitHub Pages with owner data as parameters</li>
+                    <li>When ownership transfers, old QR becomes invalid and shows nothing</li>
+                    <li>New QR is generated with new owner information</li>
+                    <li>System tracks valid/invalid QRs automatically</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>🎯 Generate QR Code</h2>
+                <input type="text" id="ownerName" placeholder="Enter owner name" value="Alice">
+                <button onclick="generateQR()">Generate QR Code</button>
+                
+                <div id="qrDisplay" style="text-align: center;"></div>
+                <div id="currentUrl"></div>
+            </div>
+            
+            <div class="section">
+                <h2>📋 QR History</h2>
+                <div id="qrHistory"></div>
+            </div>
         </div>
-
-        <!-- Status Messages -->
-        <div id="statusMessages"></div>
-
-        <!-- Current Chain Display -->
-        <div class="section" id="chainSection" class="hidden">
-            <h2>Ownership Chain</h2>
-            <div id="chainDisplay" class="chain-display"></div>
+        
+        <!-- Invalid QR Message -->
+        <div id="invalidMessage" style="display: none;">
+            <div class="section invalid-qr">
+                <h2>❌ Invalid QR Code</h2>
+                <p>This QR code is no longer valid. The ownership has been transferred to a new owner.</p>
+                <button onclick="location.reload()">Go Back to Main Page</button>
+            </div>
         </div>
     </div>
 
     <script>
-        // The "loophole" - using URL fragments and timestamp-based validation
-        let currentChain = '';
-        let isExpired = false;
-
+        let qrDatabase = {}; // Simulates a database of QR codes
+        let currentQRId = null;
+        
         function generateUniqueId() {
-            return 'qr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
         }
-
-        function showStatus(message, type = 'info') {
-            const statusDiv = document.getElementById('statusMessages');
-            const statusElement = document.createElement('div');
-            statusElement.className = `status ${type}`;
-            statusElement.textContent = message;
-            statusDiv.appendChild(statusElement);
-            setTimeout(() => statusElement.remove(), 5000);
-        }
-
-        function createQRCode(text, containerId) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-            QRCode.toCanvas(container, text, {
-                width: 300,
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#ffffff'
-                }
-            }, function (error) {
-                if (error) {
-                    showStatus('Error generating QR code: ' + error, 'error');
-                } else {
-                    const link = document.createElement('p');
-                    link.innerHTML = `<strong>QR URL:</strong> <a href="${text}" target="_blank" style="color: #00ff00; word-break: break-all;">${text}</a>`;
-                    container.appendChild(link);
-                }
-            });
-        }
-
-        function createNewQR() {
+        
+        function generateQR() {
             const ownerName = document.getElementById('ownerName').value.trim();
             if (!ownerName) {
-                showStatus('Please enter an owner name', 'error');
+                alert('Please enter an owner name');
                 return;
             }
-
-            const uniqueId = generateUniqueId();
-            const timestamp = Date.now();
             
-            // The trick: embed ownership chain in URL fragment
-            const ownershipChain = `${ownerName}:${timestamp}:${uniqueId}`;
-            const qrUrl = `${window.location.origin}${window.location.pathname}#${btoa(ownershipChain)}`;
+            // Generate new QR ID
+            currentQRId = generateUniqueId();
+            const createdDate = new Date().toISOString();
             
-            createQRCode(qrUrl, 'newQrDisplay');
-            updateChainDisplay(ownershipChain);
-            showStatus(`QR Code created for ${ownerName}!`, 'success');
+            // Create the URL that will be encoded in the QR
+            const baseUrl = 'https://youssef22karam.github.io/qr-system/index.html';
+            const qrUrl = `${baseUrl}?owner=${encodeURIComponent(ownerName)}&id=${currentQRId}&created=${encodeURIComponent(createdDate)}&status=active`;
+            
+            // Store in our "database"
+            qrDatabase[currentQRId] = {
+                owner: ownerName,
+                created: createdDate,
+                status: 'active',
+                url: qrUrl
+            };
+            
+            // Generate QR Code
+            const qrDisplay = document.getElementById('qrDisplay');
+            qrDisplay.innerHTML = '<div style="background:white;padding:20px;border-radius:15px;display:inline-block;box-shadow:0 4px 15px rgba(0,0,0,0.2);"><div id="qrcode"></div></div>';
+            
+            const qr = qrcode(0, 'M');
+            qr.addData(qrUrl);
+            qr.make();
+            
+            document.getElementById('qrcode').innerHTML = qr.createImgTag(5, 10);
+            
+            // Display current URL info
+            document.getElementById('currentUrl').innerHTML = `
+                <div class="info-box">
+                    <strong>Generated QR URL:</strong>
+                    <div class="url-display">${qrUrl}</div>
+                    <p><strong>Owner:</strong> ${ownerName}</p>
+                    <p><strong>ID:</strong> ${currentQRId}</p>
+                    <p><strong>Status:</strong> Active</p>
+                </div>
+            `;
+            
+            updateQRHistory();
+            
+            // Auto-save to localStorage for demo purposes
+            localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
         }
-
-        function claimOwnership() {
-            const newOwnerName = document.getElementById('newOwnerName').value.trim();
-            if (!newOwnerName) {
-                showStatus('Please enter your name to claim ownership', 'error');
-                return;
-            }
-
-            if (isExpired) {
-                showStatus('This QR code has expired and cannot be claimed', 'error');
-                return;
-            }
-
-            const timestamp = Date.now();
-            const uniqueId = generateUniqueId();
+        
+        function updateQRHistory() {
+            const historyDiv = document.getElementById('qrHistory');
+            const qrList = Object.entries(qrDatabase).reverse();
             
-            // Create new ownership chain - this invalidates the old QR
-            const newChain = `${currentChain}→${newOwnerName}:${timestamp}:${uniqueId}`;
-            const qrUrl = `${window.location.origin}${window.location.pathname}#${btoa(newChain)}`;
-            
-            createQRCode(qrUrl, 'claimedQrDisplay');
-            updateChainDisplay(newChain);
-            
-            // Mark current QR as expired
-            isExpired = true;
-            document.getElementById('claimBtn').disabled = true;
-            document.getElementById('claimBtn').textContent = 'Already Claimed';
-            
-            showStatus(`Ownership transferred to ${newOwnerName}! Old QR is now invalid.`, 'success');
-        }
-
-        function updateChainDisplay(chain) {
-            currentChain = chain;
-            const chainDiv = document.getElementById('chainDisplay');
-            const chainSection = document.getElementById('chainSection');
-            chainDiv.textContent = chain;
-            chainSection.classList.remove('hidden');
-        }
-
-        function parseUrlFragment() {
-            const fragment = window.location.hash.substr(1);
-            if (!fragment) return;
-
-            try {
-                const decoded = atob(fragment);
-                const parts = decoded.split('→');
-                const latestOwnership = parts[parts.length - 1];
-                const [owner, timestamp, id] = latestOwnership.split(':');
-
-                // Check if this QR is still valid (not too old, could add time limits)
-                const age = Date.now() - parseInt(timestamp);
-                const maxAge = 365 * 24 * 60 * 60 * 1000; // 1 year max
-
-                if (age > maxAge) {
-                    showStatus('This QR code has expired', 'error');
-                    isExpired = true;
-                    return;
-                }
-
-                // Display current ownership info
-                const ownershipDiv = document.getElementById('ownershipInfo');
-                ownershipDiv.innerHTML = `
-                    <strong>Current Owner:</strong> ${owner}<br>
-                    <strong>Created:</strong> ${new Date(parseInt(timestamp)).toLocaleString()}<br>
+            historyDiv.innerHTML = qrList.map(([id, data]) => `
+                <div class="info-box ${data.status !== 'active' ? 'invalid-qr' : ''}" style="margin: 10px 0;">
                     <strong>ID:</strong> ${id}<br>
-                    <strong>Transfers:</strong> ${parts.length - 1}
-                `;
-                ownershipDiv.classList.remove('hidden');
-                
-                updateChainDisplay(decoded);
-                showStatus(`QR code owned by: ${owner}`, 'info');
-
-                // Hide create section, show claim section
-                document.getElementById('createSection').style.display = 'none';
-                
-            } catch (error) {
-                showStatus('Invalid QR code format', 'error');
+                    <strong>Owner:</strong> ${data.owner}<br>
+                    <strong>Status:</strong> ${data.status}<br>
+                    <strong>Created:</strong> ${new Date(data.created).toLocaleString()}<br>
+                    <div class="url-display">${data.url}</div>
+                    ${data.status === 'active' ? '<button onclick="invalidateQR(\'' + id + '\')">Invalidate This QR</button>' : ''}
+                </div>
+            `).join('');
+        }
+        
+        function invalidateQR(qrId) {
+            if (qrDatabase[qrId]) {
+                qrDatabase[qrId].status = 'invalid';
+                localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
+                updateQRHistory();
+                alert('QR Code invalidated successfully!');
             }
         }
-
-        // Initialize on page load
-        window.onload = function() {
-            parseUrlFragment();
+        
+        function claimOwnership() {
+            const newOwner = document.getElementById('newOwnerInput').value.trim();
+            if (!newOwner) {
+                alert('Please enter a new owner name');
+                return;
+            }
             
-            // Show hosting instructions
-            if (!window.location.hash) {
-                showStatus('💡 TIP: Host this on GitHub Pages for free! Supports 50k+ requests/day', 'info');
-                showStatus('🔗 The old QRs become invalid when ownership is transferred - no server needed!', 'warning');
+            // Get current QR ID from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentId = urlParams.get('id');
+            
+            if (currentId && qrDatabase[currentId]) {
+                // Invalidate the current QR
+                qrDatabase[currentId].status = 'invalid';
+                localStorage.setItem('qrDatabase', JSON.stringify(qrDatabase));
+            }
+            
+            // Generate new QR with new owner
+            document.getElementById('ownerName').value = newOwner;
+            showGenerationForm();
+            generateQR();
+            
+            alert(`Ownership transferred to ${newOwner}! The old QR code is now invalid.`);
+        }
+        
+        function showGenerationForm() {
+            document.getElementById('generationForm').style.display = 'block';
+            document.getElementById('ownershipDisplay').style.display = 'none';
+            document.getElementById('invalidMessage').style.display = 'none';
+        }
+        
+        function showOwnershipInfo(owner, id, created) {
+            document.getElementById('displayOwnerName').textContent = owner;
+            document.getElementById('displayQRId').textContent = id;
+            document.getElementById('displayCreated').textContent = new Date(created).toLocaleString();
+            
+            document.getElementById('generationForm').style.display = 'none';
+            document.getElementById('ownershipDisplay').style.display = 'block';
+            document.getElementById('invalidMessage').style.display = 'none';
+        }
+        
+        function showInvalidMessage() {
+            document.getElementById('generationForm').style.display = 'none';
+            document.getElementById('ownershipDisplay').style.display = 'none';
+            document.getElementById('invalidMessage').style.display = 'block';
+        }
+        
+        // Initialize the page
+        window.onload = function() {
+            // Load existing database from localStorage
+            const savedDatabase = localStorage.getItem('qrDatabase');
+            if (savedDatabase) {
+                qrDatabase = JSON.parse(savedDatabase);
+            }
+            
+            // Check if we're loading from a QR code (URL parameters)
+            const urlParams = new URLSearchParams(window.location.search);
+            const owner = urlParams.get('owner');
+            const id = urlParams.get('id');
+            const created = urlParams.get('created');
+            const status = urlParams.get('status');
+            
+            if (owner && id && created) {
+                // Check if this QR is still valid
+                if (qrDatabase[id] && qrDatabase[id].status === 'active') {
+                    showOwnershipInfo(owner, id, created);
+                } else {
+                    // QR is invalid
+                    showInvalidMessage();
+                }
+            } else {
+                // Show the generation form
+                showGenerationForm();
+                updateQRHistory();
             }
         };
-
-        // Handle hash changes (back/forward navigation)
-        window.onhashchange = parseUrlFragment;
     </script>
 </body>
 </html>
